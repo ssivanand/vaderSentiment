@@ -1,0 +1,11 @@
+afraid	anx
+alarm	anx
+anxiety	anx
+scared	anx
+abuse	ang
+abusive	ang
+aggravat	ang
+aggress	ang
+abandon	sad
+agonize	sad
+agony	sad

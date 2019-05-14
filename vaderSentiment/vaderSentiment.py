@@ -192,12 +192,16 @@ class SentimentIntensityAnalyzer(object):
     """
     Give a sentiment intensity score to sentences.
     """
-    def __init__(self, lexicon_file="vader_lexicon.txt"):
+    def __init__(self, lexicon_file="vader_lexicon.txt", liwc_file="neg_liwc.txt"):
         _this_module_file_path_ = abspath(getsourcefile(lambda:0))
         lexicon_full_filepath = join(dirname(_this_module_file_path_), lexicon_file)
+        liwc_full_filepath = join(dirname(_this_module_file_path_), liwc_file)
         with open(lexicon_full_filepath, encoding='utf-8') as f:
             self.lexicon_full_filepath = f.read()
+        with open(liwc_full_filepath, encoding='utf-8') as f:
+            self.liwc_full_filepath = f.read()
         self.lexicon = self.make_lex_dict()
+        self.liwc_lexicon = self.make_liwc_dict()
 
     def make_lex_dict(self):
         """
@@ -209,6 +213,16 @@ class SentimentIntensityAnalyzer(object):
             lex_dict[word] = float(measure)
         return lex_dict
 
+    def make_liwc_dict(self):
+        """
+        Convert lexicon file to a dictionary
+        """
+        liwc_dict = {}
+        for line in self.liwc_full_filepath.split('\n'):
+            (word, liwc_category) = line.strip().split('\t')[0:2]
+            liwc_dict[word] = liwc_category
+        return liwc_dict
+
     def polarity_scores(self, text):
         """
         Return a float for sentiment strength based on the input text.
@@ -219,6 +233,9 @@ class SentimentIntensityAnalyzer(object):
         #text, words_and_emoticons, is_cap_diff = self.preprocess(text)
 
         sentiments = []
+        anx_count = 0
+        ang_count = 0
+        sad_count = 0
         words_and_emoticons = sentitext.words_and_emoticons
         for item in words_and_emoticons:
             valence = 0
@@ -230,10 +247,31 @@ class SentimentIntensityAnalyzer(object):
                 continue
 
             sentiments = self.sentiment_valence(valence, sentitext, item, i, sentiments)
+            if sentiments[-1] < 0.0:
+                item_lowercase = item.lower()
+                if item_lowercase in self.liwc_lexicon:
+                    liwc_category = self.liwc_lexicon[item_lowercase]
+                    if liwc_category == 'ang':
+                        ang_count += 1
+                    elif liwc_category == 'anx':
+                        anx_count += 1
+                    elif liwc_category == 'sad':
+                        sad_count += 1
 
         sentiments = self._but_check(words_and_emoticons, sentiments)
         
         valence_dict = self.score_valence(sentiments, text)
+        valence_dict = self.score_liwc(valence_dict, ang_count, anx_count, sad_count)
+
+        return valence_dict
+
+    def score_liwc(self, valence_dict, ang_count, anx_count, sad_count):
+
+        total_neg_count = ang_count + anx_count + sad_count
+        neg_score = valence_dict['neg']
+        valence_dict['ang'] = (ang_count / total_neg_count) * neg_score
+        valence_dict['anx'] = (anx_count / total_neg_count) * neg_score
+        valence_dict['sad'] = (sad_count / total_neg_count) * neg_score
 
         return valence_dict
 
